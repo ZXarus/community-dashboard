@@ -7,5 +7,8 @@
   "dependencies": {
     "react-router-dom": "^7.9.4",
     "vite": "^7.1.12"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.16"
   }
 }
