@@ -1,4 +1,9 @@
 {
+  "name": "community-dashboard",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "dev": "cd frontend && npm run dev"
+  },
   "dependencies": {
     "react-router-dom": "^7.9.4",
     "vite": "^7.1.12"
