@@ -9,9 +9,11 @@ import {
   getAuth,
   User,
 } from "firebase/auth";
+import { FirebaseError } from "firebase/app"; 
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { createContext, useContext, useEffect, useState } from "react";
 import { db } from "../firebase";
+
 
 interface ExtendedUser extends User {
   role?: string;
@@ -26,6 +28,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
+
 const AuthContext = createContext<AuthContextType>({
   user: null,
   authReady: false,
@@ -35,12 +38,12 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
+
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const auth = getAuth();
   const [user, setUser] = useState<ExtendedUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
-  // 🔹 Fetch user + role from Firestore
   const fetchUserData = async (firebaseUser: User) => {
     const userRef = doc(db, "users", firebaseUser.uid);
     const snap = await getDoc(userRef);
@@ -49,13 +52,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const roleData = snap.data().role || "member";
       setUser({ ...firebaseUser, role: roleData });
     } else {
-      // Default role: member
+      const initialRole = "member";
       await setDoc(userRef, {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
-        role: "member",
+        role: initialRole,
       });
-      setUser({ ...firebaseUser, role: "member" });
+      setUser({ ...firebaseUser, role: initialRole });
     }
   };
 
@@ -71,36 +74,53 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return unsubscribe;
   }, [auth]);
 
+
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      console.error("Login error:", err);
+      throw err; 
+    }
   };
 
   const signup = async (email: string, password: string) => {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await setDoc(doc(db, "users", cred.user.uid), {
-      uid: cred.user.uid,
-      email,
-      role: "member",
-    });
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, "users", cred.user.uid), {
+        uid: cred.user.uid,
+        email,
+        role: "member",
+      });
+    } catch (err) {
+      console.error("Signup error:", err);
+      throw err;
+    }
   };
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    const cred = await signInWithPopup(auth, provider);
-    const userRef = doc(db, "users", cred.user.uid);
-    const snap = await getDoc(userRef);
-    if (!snap.exists()) {
-      await setDoc(userRef, {
-        uid: cred.user.uid,
-        email: cred.user.email,
-        role: "member",
-      });
+    try {
+      await signInWithPopup(auth, provider); 
+    } catch (err) {
+      if (err instanceof FirebaseError && err.code === "auth/popup-blocked") {
+         console.error("Google login failed: Pop-up was blocked. Recommend switching to signInWithRedirect.");
+         throw new Error("Google login failed: Your browser blocked the sign-in pop-up. Please allow pop-ups for this site or try again.");
+      }
+      console.error("Google login error:", err);
+      throw err;
     }
   };
 
   const logout = async () => {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Logout error:", err);
+      throw err;
+    }
   };
+
 
   return (
     <AuthContext.Provider
@@ -110,5 +130,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = () => useContext(AuthContext);
